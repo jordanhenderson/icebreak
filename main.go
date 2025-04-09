@@ -44,8 +44,10 @@ func InitLambda() {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Env = os.Environ()
-		if err := cmd.Run(); err != nil {
-			log.Printf("[bootstrap] Wrapper %s failed: %v", resolvedPath, err)
+		if err := cmd.Start(); err != nil {
+			log.Printf("[bootstrap] Wrapper %s failed to start: %v", resolvedPath, err)
+		} else {
+			log.Printf("[bootstrap] Wrapper %s started in background (PID %d)", resolvedPath, cmd.Process.Pid)
 		}
 	}
 }
