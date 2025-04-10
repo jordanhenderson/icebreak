@@ -10,7 +10,23 @@ import (
 	"syscall"
 )
 
+const markerPath = "/tmp/icecape_marker"
+
+func alreadyBootstrapped() bool {
+	_, err := os.Stat(markerPath)
+	return err == nil
+}
+
+func markBootstrapped() {
+	_ = os.WriteFile(markerPath, []byte("READY"), 0600)
+}
+
 func InitLambda() {
+	// Prevent infinite bootstrap recursions
+	if alreadyBootstrapped() {
+		return
+	}
+	markBootstrapped()
 	wrapperEnv := os.Getenv("AWS_LAMBDA_EXEC_WRAPPER")
 	if wrapperEnv == "" {
 		return
@@ -84,5 +100,6 @@ func InitLambda() {
 		if !ready {
 			log.Println("[bootstrap] proceeding without explicit READY signal (child exited early)")
 		}
+
 	}
 }
