@@ -1,6 +1,7 @@
 package icebreak
 
 import (
+	"bufio"
 	"log"
 	"os"
 	"os/exec"
@@ -40,14 +41,34 @@ func InitLambda() {
 		}
 
 		log.Printf("[bootstrap] Running: %s", resolvedPath)
+
 		cmd := exec.Command(resolvedPath)
-		cmd.Stdout = os.Stdout
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			log.Fatalf("failed to attach stdout pipe: %v", err)
+		}
 		cmd.Stderr = os.Stderr
 		cmd.Env = os.Environ()
+
 		if err := cmd.Start(); err != nil {
-			log.Printf("[bootstrap] Wrapper %s failed to start: %v", resolvedPath, err)
-		} else {
-			log.Printf("[bootstrap] Wrapper %s started in background (PID %d)", resolvedPath, cmd.Process.Pid)
+			log.Fatalf("[bootstrap] Wrapper %s failed to start: %v", resolvedPath, err)
+		}
+
+		log.Printf("[bootstrap] Wrapper %s started in background (PID %d)", resolvedPath, cmd.Process.Pid)
+
+		// Block until stdout contains "READY"
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			log.Printf("[stdout] %s", line)
+			if strings.Contains(line, "READY") {
+				log.Println("[bootstrap] child process signaled readiness")
+				break
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Fatalf("error reading iceflake stdout: %v", err)
 		}
 	}
 }
