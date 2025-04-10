@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 func InitLambda() {
@@ -56,19 +57,32 @@ func InitLambda() {
 
 		log.Printf("[bootstrap] Wrapper %s started in background (PID %d)", resolvedPath, cmd.Process.Pid)
 
-		// Block until stdout contains "READY"
 		scanner := bufio.NewScanner(stdoutPipe)
+		ready := false
+
 		for scanner.Scan() {
 			line := scanner.Text()
 			log.Printf("[stdout] %s", line)
+
 			if strings.Contains(line, "READY") {
 				log.Println("[bootstrap] child process signaled readiness")
+				ready = true
+				break
+			}
+
+			// Check if the process has exited
+			if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
+				log.Println("[bootstrap] child process has exited")
 				break
 			}
 		}
 
 		if err := scanner.Err(); err != nil {
-			log.Fatalf("error reading iceflake stdout: %v", err)
+			log.Fatalf("error reading child stdout: %v", err)
+		}
+
+		if !ready {
+			log.Println("[bootstrap] proceeding without explicit READY signal (child exited early)")
 		}
 	}
 }
